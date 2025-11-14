@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Supabase Storage</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Supabase Storage Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Test Connection</h2>
+        <button onclick="testConnection()">Test Connection</button>
+        <div id="connection-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. List Buckets</h2>
+        <button onclick="listBuckets()">List Buckets</button>
+        <div id="buckets-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Upload Test Video</h2>
+        <input type="file" id="video-file" accept="video/*">
+        <button onclick="uploadTestVideo()">Upload Video</button>
+        <div id="upload-result"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://hqopvvwczsgxocnzosce.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhxb3B2dndjenNneG9jbnpvc2NlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0MTQwMTQsImV4cCI6MjA3Nzk5MDAxNH0.NTPaokzkTYNqP2HEb4saUBDy34rHa7v_nq9NHGFGTBY';
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        async function testConnection() {
+            const result = document.getElementById('connection-result');
+            result.innerHTML = 'Testing...';
+            
+            try {
+                const { data, error } = await supabase.from('restaurants').select('count');
+                if (error) throw error;
+                result.innerHTML = '<p class="success">✓ Connection successful!</p>';
+            } catch (error) {
+                result.innerHTML = `<p class="error">✗ Connection failed: ${error.message}</p>`;
+            }
+        }
+
+        async function listBuckets() {
+            const result = document.getElementById('buckets-result');
+            result.innerHTML = 'Loading...';
+            
+            try {
+                const { data, error } = await supabase.storage.listBuckets();
+                if (error) throw error;
+                
+                const buckets = data.map(b => `${b.name} (public: ${b.public})`).join(', ');
+                result.innerHTML = `<p class="success">✓ Buckets found: ${buckets}</p><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                result.innerHTML = `<p class="error">✗ Failed: ${error.message}</p>`;
+            }
+        }
+
+        async function uploadTestVideo() {
+            const result = document.getElementById('upload-result');
+            const fileInput = document.getElementById('video-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                result.innerHTML = '<p class="error">Please select a file first</p>';
+                return;
+            }
+
+            result.innerHTML = 'Uploading...';
+            
+            try {
+                const fileName = `test/${Date.now()}_${file.name}`;
+                console.log('Uploading:', fileName);
+                
+                const { data, error } = await supabase.storage
+                    .from('dish-videos')
+                    .upload(fileName, file, {
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+
+                if (error) throw error;
+
+                const { data: { publicUrl } } = supabase.storage
+                    .from('dish-videos')
+                    .getPublicUrl(data.path);
+
+                result.innerHTML = `
+                    <p class="success">✓ Upload successful!</p>
+                    <p>Path: ${data.path}</p>
+                    <p>URL: <a href="${publicUrl}" target="_blank">${publicUrl}</a></p>
+                    <video src="${publicUrl}" controls style="max-width: 100%; margin-top: 10px;"></video>
+                `;
+            } catch (error) {
+                result.innerHTML = `<p class="error">✗ Upload failed: ${error.message}</p><pre>${JSON.stringify(error, null, 2)}</pre>`;
+            }
+        }
+    </script>
+</body>
+</html>
